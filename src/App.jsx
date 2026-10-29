@@ -2,11 +2,20 @@ import { useCallback, useEffect, useState } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { motion } from 'framer-motion';
 import Login from './components/Login';
-import { FaHome, FaStore, FaMobileAlt, FaSignOutAlt, FaDollarSign, FaChartLine, FaShieldAlt, FaLaptop, FaWifi, FaPhone, FaPowerOff, FaCheckCircle, FaSkullCrossbones, FaBug, FaBars, FaChevronLeft, FaCrosshairs, FaShoppingCart, FaBell, FaNetworkWired, FaTruck, FaLock, FaSearch, FaBroadcastTower } from 'react-icons/fa';
+import { FaHome, FaStore, FaMobileAlt, FaSignOutAlt, FaDollarSign, FaChartLine, FaShieldAlt, FaLaptop, FaWifi, FaPhone, FaPowerOff, FaCheckCircle, FaSkullCrossbones, FaBug, FaBars, FaChevronLeft, FaCrosshairs, FaShoppingCart, FaBell, FaNetworkWired, FaTruck, FaLock, FaSearch, FaBroadcastTower, FaEnvelope } from 'react-icons/fa';
 import MainPhone from './client/components/Phone';
 import MainLaptopInterface from './client/components/LaptopInterface';
 import { GameProvider as MainGameProvider, useGame as useMainGame } from './client/context/GameContext';
 import OpsSurface from './components/OpsSurface';
+import PlayerInbox, {
+  CHRIS_TTL_MS,
+  createChrisEmail,
+  createPhishEmail,
+  nextChrisLessonId,
+  normalizeInbox,
+  purgeExpiredMail,
+  toPhoneEmailShape
+} from './components/PlayerInbox';
 import './App.css';
 
 const SESSION_KEY = 'hackhilis_v2_session';
@@ -279,6 +288,7 @@ const NavLabel = styled.span`
 `;
 
 const Main = styled.main`
+  position: relative;
   margin-left: ${({ $expanded }) => ($expanded ? '220px' : '80px')};
   width: ${({ $expanded }) => ($expanded ? 'calc(90% - 220px)' : 'calc(90% - 80px)')};
   padding: ${({ $expanded }) => ($expanded ? '20px 22px 20px 5%' : '20px 22px')};
@@ -299,6 +309,60 @@ const HeaderCard = styled(motion.div)`
   box-shadow:
     0 18px 42px rgba(0, 0, 0, 0.35),
     inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+`;
+
+const HomeHeaderRow = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+`;
+
+const InboxIconButton = styled.button`
+  position: relative;
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 255, 65, 0.35);
+  background: rgba(0, 255, 65, 0.08);
+  color: #00ff41;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 1.15rem;
+
+  &:hover {
+    background: rgba(0, 255, 65, 0.16);
+    border-color: rgba(0, 255, 65, 0.55);
+  }
+`;
+
+const InboxFab = styled(InboxIconButton)`
+  position: fixed;
+  top: 18px;
+  right: 22px;
+  z-index: 2100;
+  width: 48px;
+  height: 48px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+`;
+
+const UnreadDot = styled.span`
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 99px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  line-height: 1;
 `;
 
 const StoreHeaderRow = styled.div`
@@ -1394,26 +1458,39 @@ const baseHv1State = {
   money: 10000,
   devices: defaultDevices,
   upgrades: defaultUpgrades,
-  transactionHistory: defaultTransactionHistory
+  transactionHistory: defaultTransactionHistory,
+  inbox: normalizeInbox(null),
+  chrisSeenLessons: ['chris-hello', 'chris-ops'],
+  chrisNextAt: 0
 };
 
 const getUserStateKey = (username) => `${HV1_STATE_KEY}_${username}`;
-const normalizeHv1State = (rawState) => ({
-  ...baseHv1State,
-  ...(rawState || {}),
-  devices: {
-    ...defaultDevices,
-    ...(rawState?.devices || {})
-  },
-  upgrades: {
-    ...defaultUpgrades,
-    ...(rawState?.upgrades || {})
-  },
-  transactionHistory:
-    Array.isArray(rawState?.transactionHistory) && rawState.transactionHistory.length > 0
-      ? rawState.transactionHistory
-      : defaultTransactionHistory
-});
+const normalizeHv1State = (rawState) => {
+  const inbox = normalizeInbox(rawState?.inbox);
+  const fromMail = inbox.filter((m) => m.kind === 'mentor' && m.lessonId).map((m) => m.lessonId);
+  const chrisSeenLessons = Array.from(
+    new Set([...(rawState?.chrisSeenLessons || []), ...fromMail])
+  );
+  return {
+    ...baseHv1State,
+    ...(rawState || {}),
+    devices: {
+      ...defaultDevices,
+      ...(rawState?.devices || {})
+    },
+    upgrades: {
+      ...defaultUpgrades,
+      ...(rawState?.upgrades || {})
+    },
+    transactionHistory:
+      Array.isArray(rawState?.transactionHistory) && rawState.transactionHistory.length > 0
+        ? rawState.transactionHistory
+        : defaultTransactionHistory,
+    inbox,
+    chrisSeenLessons,
+    chrisNextAt: Number(rawState?.chrisNextAt) || 0
+  };
+};
 
 const toSimulatedUserIp = (username) => {
   if (!username || typeof username !== 'string') return 'SIM-000.000.000-USR';
@@ -1456,7 +1533,7 @@ const MainPhoneBridge = ({ user, hv1State }) => {
         money: hv1State?.money ?? 0,
         contacts: [],
         messages: [],
-        emails: [],
+        emails: (hv1State?.inbox || []).map(toPhoneEmailShape),
         internetHistory: [],
         lastCharge: Date.now(),
         securityLevel: 1,
@@ -1496,6 +1573,7 @@ const MainPhoneBridge = ({ user, hv1State }) => {
     dispatch,
     user,
     hv1State?.money,
+    hv1State?.inbox,
     hv1State?.devices?.phone?.purchased,
     hv1State?.devices?.phone?.model,
     hv1State?.devices?.phone?.online,
@@ -1587,7 +1665,76 @@ function App() {
   const [incidentUnread, setIncidentUnread] = useState(false);
   const [showIncidentDetails, setShowIncidentDetails] = useState(false);
   const [showMoneyDetails, setShowMoneyDetails] = useState(false);
+  const [showInbox, setShowInbox] = useState(false);
   const [storeSearchQuery, setStoreSearchQuery] = useState('');
+
+  useEffect(() => {
+    const openInbox = () => setShowInbox(true);
+    window.addEventListener('hackhilis-open-inbox', openInbox);
+    return () => window.removeEventListener('hackhilis-open-inbox', openInbox);
+  }, []);
+
+  // Chris mentor mail self-destructs; next lesson arrives after a short quiet gap.
+  useEffect(() => {
+    if (!currentUser?.username) return undefined;
+
+    const tick = () => {
+      setHv1State((prev) => {
+        const now = Date.now();
+        const before = Array.isArray(prev.inbox) ? prev.inbox : [];
+        let inbox = purgeExpiredMail(before, now);
+        let chrisSeenLessons = [...(prev.chrisSeenLessons || [])];
+        let chrisNextAt = Number(prev.chrisNextAt) || 0;
+        const burnedChris = before.filter(
+          (m) => m.kind === 'mentor' && m.expiresAt && m.expiresAt <= now
+        );
+        if (burnedChris.length) {
+          chrisNextAt = Math.max(chrisNextAt, now + 90 * 1000);
+          burnedChris.forEach((m) => {
+            if (m.lessonId && !chrisSeenLessons.includes(m.lessonId)) {
+              chrisSeenLessons.push(m.lessonId);
+            }
+          });
+        }
+
+        const liveChris = inbox.some((m) => m.kind === 'mentor');
+        inbox.forEach((m) => {
+          if (m.kind === 'mentor' && m.lessonId && !chrisSeenLessons.includes(m.lessonId)) {
+            chrisSeenLessons.push(m.lessonId);
+          }
+        });
+
+        let delivered = false;
+        if (!liveChris && now >= chrisNextAt) {
+          const fakeInbox = chrisSeenLessons.map((lessonId) => ({ kind: 'mentor', lessonId }));
+          const lessonId = nextChrisLessonId(fakeInbox);
+          if (lessonId) {
+            inbox = [createChrisEmail(lessonId, { createdAt: now }), ...inbox].slice(0, 40);
+            chrisSeenLessons = [...chrisSeenLessons, lessonId];
+            chrisNextAt = now + CHRIS_TTL_MS + 90 * 1000;
+            delivered = true;
+          }
+        }
+
+        const sameInbox =
+          inbox.length === before.length && inbox.every((m, i) => m.id === before[i]?.id);
+        if (sameInbox && !delivered && burnedChris.length === 0) return prev;
+
+        const updated = normalizeHv1State({
+          ...prev,
+          inbox,
+          chrisSeenLessons,
+          chrisNextAt
+        });
+        localStorage.setItem(getUserStateKey(currentUser.username), JSON.stringify(updated));
+        return updated;
+      });
+    };
+
+    tick();
+    const id = setInterval(tick, 4000);
+    return () => clearInterval(id);
+  }, [currentUser?.username]);
 
   const persistState = (username, nextState) => {
     const normalized = normalizeHv1State(nextState);
@@ -1679,7 +1826,9 @@ function App() {
         money: mainState.phone?.money ?? 0,
         contacts: mainState.phone?.contacts ?? [],
         messages: mainState.phone?.messages ?? [],
-        emails: mainState.phone?.emails ?? [],
+        emails: Array.isArray(sourceState.inbox)
+          ? sourceState.inbox.map(toPhoneEmailShape)
+          : (mainState.phone?.emails ?? []),
         internetHistory: mainState.phone?.internetHistory ?? [],
         lastCharge: mainState.phone?.lastCharge ?? Date.now(),
         securityLevel: mainState.phone?.securityLevel ?? 1
@@ -2084,15 +2233,112 @@ function App() {
       return true;
     };
 
+    const updateInbox = (nextInbox) => {
+      const updated = { ...hv1State, inbox: nextInbox };
+      persistState(currentUser.username, updated);
+      syncHv1StateToMainGameStorage(currentUser.username, updated);
+    };
+
+    const deliverIncomingPhish = () => {
+      const mail = createPhishEmail({
+        createdAt: Date.now(),
+        preview: 'Incoming counter-phish from a noisy campaign…'
+      });
+      updateInbox([mail, ...(hv1State.inbox || [])].slice(0, 40));
+      appendActivity('inbox: suspicious mail arrived');
+    };
+
+    const markInboxRead = (id) => {
+      updateInbox((hv1State.inbox || []).map((m) => (m.id === id ? { ...m, read: true } : m)));
+    };
+
+    const reportInboxPhish = (id) => {
+      updateInbox(
+        (hv1State.inbox || []).map((m) =>
+          m.id === id ? { ...m, read: true, resolved: 'reported' } : m
+        )
+      );
+      appendActivity('inbox: phishing reported');
+    };
+
+    const deleteInboxMail = (id) => {
+      updateInbox((hv1State.inbox || []).filter((m) => m.id !== id));
+    };
+
+    const fallForInboxPhish = (mail) => {
+      if (!mail || mail.resolved) return;
+      const pctLoss = Math.round(
+        Math.min(
+          mail.lossMax || 2000,
+          Math.max(mail.lossMin || 200, Number(hv1State.money || 0) * (mail.lossPct || 0.1))
+        )
+      );
+      const loss = Math.min(hv1State.money, pctLoss);
+      const nextInbox = (hv1State.inbox || []).map((m) =>
+        m.id === mail.id
+          ? { ...m, read: true, resolved: 'phished', lossAmount: loss }
+          : m
+      );
+      let updated = { ...hv1State, inbox: nextInbox };
+      if (loss > 0) {
+        updated = withTransaction(
+          { ...updated, money: updated.money - loss },
+          {
+            type: 'debit',
+            title: `Phish hit · ${mail.bait || 'lure'}`,
+            amount: loss,
+            note: `Fell for simulated bait: ${mail.subject}`,
+            category: 'phish'
+          }
+        );
+      }
+      persistState(currentUser.username, updated);
+      syncHv1StateToMainGameStorage(currentUser.username, updated);
+      appendActivity(`inbox phish −$${loss}`);
+      registerIncident({
+        id: `phish-${Date.now()}`,
+        status: 'compromised',
+        timestamp: new Date().toLocaleString(),
+        attackType: 'phishing',
+        sourceName: mail.fromName || mail.from,
+        missionTitle: 'Operator inbox',
+        fundsLost: loss,
+        detail: `You clicked “${mail.cta || 'Open link'}” on bait mail.`
+      });
+    };
+
+    const unreadMail = (hv1State.inbox || []).filter((m) => !m.read).length;
+
     const renderOps = () => (
-      <OpsSurface money={hv1State.money} onEarn={creditOpsEarnings} onSpend={debitOpsSpend} />
+      <OpsSurface
+        money={hv1State.money}
+        onEarn={creditOpsEarnings}
+        onSpend={debitOpsSpend}
+        onPlayerPhish={deliverIncomingPhish}
+      />
     );
 
     const renderHome = () => (
       <PageContainer>
         <HeaderCard initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-          <PageTitle>Welcome back, {currentUser.username}</PageTitle>
-          <PageSubtitle>Level 1 • 0 XP • Hit Ops for simulated public Wi‑Fi & phishing.</PageSubtitle>
+          <HomeHeaderRow>
+            <div>
+              <PageTitle>Welcome back, {currentUser.username}</PageTitle>
+              <PageSubtitle>
+                Level 1 • 0 XP • Hit Ops for simulated public Wi‑Fi & phishing. Check mail — some
+                lures actually bite.
+              </PageSubtitle>
+            </div>
+            <InboxIconButton
+              type="button"
+              aria-label="Open inbox"
+              title="Inbox"
+              onClick={() => setShowInbox(true)}
+            >
+              <FaEnvelope />
+              {unreadMail > 0 && <UnreadDot>{unreadMail > 9 ? '9+' : unreadMail}</UnreadDot>}
+            </InboxIconButton>
+          </HomeHeaderRow>
         </HeaderCard>
         <Grid>
           <StatCardButton onClick={() => setShowMoneyDetails(true)}>
@@ -2432,6 +2678,17 @@ function App() {
           </UserFooter>
         </Sidebar>
         <Main $expanded={navExpanded}>
+          {activePage !== 'home' && (
+            <InboxFab
+              type="button"
+              aria-label="Open inbox"
+              title="Inbox"
+              onClick={() => setShowInbox(true)}
+            >
+              <FaEnvelope />
+              {unreadMail > 0 && <UnreadDot>{unreadMail > 9 ? '9+' : unreadMail}</UnreadDot>}
+            </InboxFab>
+          )}
           {activeIncident && (
             <AlertStrip $unread={incidentUnread} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
               <AlertText>
@@ -2457,6 +2714,16 @@ function App() {
           {activePage === 'devices' && renderDevices()}
           {activePage === 'ops' && renderOps()}
         </Main>
+        {showInbox && (
+          <PlayerInbox
+            emails={hv1State.inbox || []}
+            onClose={() => setShowInbox(false)}
+            onMarkRead={markInboxRead}
+            onFallForPhish={fallForInboxPhish}
+            onReportPhish={reportInboxPhish}
+            onDelete={deleteInboxMail}
+          />
+        )}
         {ENABLE_SIMULATED_BOTS && showIncidentDetails && activeIncident && (
           <IncidentOverlay onClick={() => setShowIncidentDetails(false)}>
             <IncidentCard onClick={(event) => event.stopPropagation()}>

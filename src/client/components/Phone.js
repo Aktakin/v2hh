@@ -1466,29 +1466,18 @@ const Phone = ({ user, hideEmbeddedLaptopKeyboard = false }) => {
     });
   };
 
-  const emails = [
-    {
-      id: 1,
-      sender: 'Daily Credit',
-      subject: 'Your $50 Daily Credit is Ready!',
-      preview: 'Click here to claim your free $50 credit...',
-      time: '2 min ago'
-    },
-    {
-      id: 2,
-      sender: 'Bank Newsletter',
-      subject: 'Your monthly statement is available',
-      preview: 'View your balance and recent transactions in the secure portal.',
-      time: '15 min ago'
-    },
-    {
-      id: 3,
-      sender: 'Tech Support',
-      subject: 'Optional maintenance window',
-      preview: 'We may perform brief maintenance Sunday 2–4 AM. No action required.',
-      time: '1 hour ago'
-    }
-  ];
+  const emails =
+    Array.isArray(gameState.phone?.emails) && gameState.phone.emails.length > 0
+      ? gameState.phone.emails
+      : [
+          {
+            id: 1,
+            sender: 'HackHilis Ops Desk',
+            subject: 'Welcome to your operator inbox',
+            preview: 'Open the fullscreen inbox from Home for full mail actions…',
+            time: 'just now'
+          }
+        ];
 
   const messages = [
     {
@@ -1686,6 +1675,9 @@ const Phone = ({ user, hideEmbeddedLaptopKeyboard = false }) => {
                     key={email.id}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('hackhilis-open-inbox'));
+                    }}
                   >
                     <EmailHeader>
                       <EmailSender>{email.sender}</EmailSender>
@@ -1696,6 +1688,9 @@ const Phone = ({ user, hideEmbeddedLaptopKeyboard = false }) => {
                   </EmailItem>
                 ))}
               </EmailList>
+              <div style={{ padding: '10px 4px', fontSize: '0.75rem', color: '#9ca3af' }}>
+                Tap any mail to open the fullscreen inbox (report or fall for lures there).
+              </div>
             </AppContent>
           </AppScreen>
         );

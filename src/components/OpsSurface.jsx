@@ -985,7 +985,7 @@ const EMAIL_EXPLOIT_METHODS = [
   }
 ];
 
-function EmailLab({ onEarn, onSpend, money, pushLog, log, addHeat }) {
+function EmailLab({ onEarn, onSpend, money, pushLog, log, addHeat, onPlayerPhish }) {
   const [vectorId, setVectorId] = useState(EMAIL_VECTORS[0].id);
   const [targets, setTargets] = useState(() =>
     Array.from({ length: 6 }, () => makeEmailTarget(0.4))
@@ -1047,6 +1047,10 @@ function EmailLab({ onEarn, onSpend, money, pushLog, log, addHeat }) {
       if (i >= queue.length) {
         pushLog('Campaign wave finished — open exploit on clickers when ready.');
         setBusy(false);
+        if (Math.random() < 0.55) {
+          onPlayerPhish?.();
+          pushLog('Noise attracted a counter-phish — check your inbox.', '#fca5a5');
+        }
         return;
       }
       const t = queue[i];
@@ -1372,7 +1376,7 @@ const TRACE_CLEAR_HEAT = 50;
 const TRACE_SECONDS = 18;
 const CAUGHT_HOLD_MS = 4500;
 
-export default function OpsSurface({ onEarn, onSpend, money }) {
+export default function OpsSurface({ onEarn, onSpend, money, onPlayerPhish }) {
   const [domain, setDomain] = useState('wifi');
   const [log, setLog] = useState([]);
   const [heat, setHeat] = useState(0);
@@ -1579,6 +1583,7 @@ export default function OpsSurface({ onEarn, onSpend, money }) {
               pushLog={pushLog}
               log={log}
               addHeat={addHeat}
+              onPlayerPhish={onPlayerPhish}
             />
           )}
           {domain === 'ble' && (

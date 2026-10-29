@@ -3069,24 +3069,25 @@ const LaptopInterface = ({
           <WindowContent $kali={isKaliUi} style={{ padding: '20px' }}>
             <h3>{isKaliUi ? 'Thunderbird (simulation)' : 'Inbox'}</h3>
             <p style={{ fontSize: '12px', color: isKaliUi ? '#8ea6cb' : '#666', marginBottom: '12px' }}>
-              {isKaliUi ? 'Local mailbox · IMAP disabled (offline bundle)' : 'Your messages'}
+              {isKaliUi
+                ? 'Local mailbox · opens shared operator inbox (simulation)'
+                : 'Opens your shared operator inbox'}
             </p>
-            <div style={{ marginTop: '8px' }}>
-              <div
-                style={{
-                  padding: '12px',
-                  borderBottom: `1px solid ${isKaliUi ? '#243449' : '#ddd'}`,
-                  cursor: 'pointer',
-                  borderRadius: '6px',
-                  background: isKaliUi ? 'rgba(18, 31, 51, 0.6)' : 'transparent'
-                }}
-              >
-                <strong>Welcome</strong>
-                <p style={{ margin: '6px 0 0', color: isKaliUi ? '#b8cbe8' : '#666', fontSize: '13px' }}>
-                  Welcome to your simulated inbox on this Kali workspace.
-                </p>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('hackhilis-open-inbox'))}
+              style={{
+                padding: '10px 16px',
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: 600,
+                background: isKaliUi ? 'linear-gradient(135deg, #5fa8ff 0%, #3d7ccc 100%)' : '#0078d4',
+                color: '#fff'
+              }}
+            >
+              Open fullscreen inbox
+            </button>
           </WindowContent>
         );
       case 'cloud':
