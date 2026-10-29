@@ -1,0 +1,114 @@
+.screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+  padding: 24px;
+}
+
+.panel {
+  width: 100%;
+  max-width: 420px;
+  background: rgba(26, 26, 46, 0.92);
+  border: 2px solid #00ff41;
+  border-radius: 12px;
+  padding: 28px;
+  color: #d8ffe3;
+  box-shadow: 0 0 24px rgba(0, 255, 65, 0.2);
+}
+
+.app-shell {
+  max-width: 760px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: 1.9rem;
+  color: #00ff41;
+}
+
+.content h2 {
+  margin: 0 0 8px;
+  font-size: 1.6rem;
+  color: #00ff41;
+}
+
+p {
+  margin: 0 0 18px;
+  color: #b6c7c2;
+}
+
+.nav-tabs {
+  display: flex;
+  gap: 10px;
+  margin: 14px 0 18px;
+  flex-wrap: wrap;
+}
+
+.tab {
+  margin-top: 0;
+  background: transparent;
+  border: 1px solid #00ff41;
+  color: #00ff41;
+}
+
+.tab.active {
+  background: #00ff41;
+  color: #07110b;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+label {
+  font-size: 0.9rem;
+  color: #8de0a8;
+}
+
+input {
+  border: 1px solid #2d7f4b;
+  background: #0f131f;
+  color: #ddffeb;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+input:focus {
+  outline: none;
+  border-color: #00ffff;
+}
+
+button {
+  margin-top: 10px;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #00ff41;
+  color: #07110b;
+}
+
+button.secondary {
+  margin-top: 6px;
+  background: transparent;
+  border: 1px solid #00ff41;
+  color: #00ff41;
+}
+
+.error {
+  color: #ff6c91;
+  font-size: 0.9rem;
+  margin-top: 4px;
+}
